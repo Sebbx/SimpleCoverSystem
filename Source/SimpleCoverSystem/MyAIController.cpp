@@ -13,6 +13,5 @@ void AMyAIController::OnPossess(APawn* InPawn)
 	if(BehaviorTree)
 	{
 		RunBehaviorTree(BehaviorTree);
-		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, TEXT("RunBehaviorTree"));
 	}
 }
