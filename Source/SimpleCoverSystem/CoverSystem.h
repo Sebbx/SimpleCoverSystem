@@ -4,6 +4,15 @@
 #include "GameFramework/Actor.h"
 #include "CoverSystem.generated.h"
 
+enum class EDirection : uint8
+{
+	ED_Left,
+	ED_Right,
+	ED_Top,
+	ED_Bottom,
+	ED_None
+};
+
 class AAICharacter;
 class ACover;
 UCLASS()
@@ -28,13 +37,26 @@ private:
 
 	TArray<ACover*> CoversOnScene;
 	TArray<AAICharacter*> EnemyTeam;
-	TArray<AAICharacter*> PlayerTeam;
+	TArray<AAICharacter*> AllyTeam;
 
-	UFUNCTION(BlueprintCallable)
-	bool FindBestCoverForCharacter(ACover* &BestCover);
+	UPROPERTY(EditAnywhere, Category = "World Directions")
+	FFloatRange LeftDirectionAngleRange = FFloatRange(-45, 45);
+	UPROPERTY(EditAnywhere, Category = "World Directions")
+	FFloatRange RightDirectionAngleRangePositive = FFloatRange(135, 180);
+	UPROPERTY(EditAnywhere, Category = "World Directions")
+	FFloatRange RightDirectionAngleRangeNegative = FFloatRange(-180, -135);
+	UPROPERTY(EditAnywhere, Category = "World Directions")
+	FFloatRange TopDirectionAngleRange = FFloatRange(45, 135);
+	UPROPERTY(EditAnywhere, Category = "World Directions")
+	FFloatRange BottomDirectionAngleRange = FFloatRange(-135, -45);
 
 	
+	UFUNCTION(BlueprintCallable)
+	bool FindBestCoverForCharacter(ACover* &BestCover);
+	
 	void CheckOccupiedCovers(TArray<ACover*> &CoverCandidates);
+	void CheckToCloseFromEnemiesCovers(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
+	void CheckNotSafeCovers(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
 	
 
 };

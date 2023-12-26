@@ -16,6 +16,7 @@ public:
 	class USceneComponent* CoverPosition; //SceneComponent do łatwego ustawienia docelowej pozycji przy osłonie
 
 	FVector GetCoverPositionVector();
+	FTransform GetCoverPositionTransform();
 
 protected:
 	virtual void BeginPlay() override;
@@ -28,5 +29,17 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	bool bIsReserved = false;
+
+	UPROPERTY(EditAnywhere)
+	bool bIsLeftProtected = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bIsRightProtected = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bIsTopProtected = false;
+	
+	UPROPERTY(EditAnywhere)
+	bool bIsBottomProtected = false;
 
 };

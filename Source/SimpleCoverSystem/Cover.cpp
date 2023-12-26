@@ -23,6 +23,11 @@ FVector ACover::GetCoverPositionVector()
 	return CoverPosition->GetComponentLocation();
 }
 
+FTransform ACover::GetCoverPositionTransform()
+{
+	return CoverPosition->GetComponentTransform();
+}
+
 // Called when the game starts or when spawned
 void ACover::BeginPlay()
 {
