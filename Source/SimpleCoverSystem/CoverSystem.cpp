@@ -15,8 +15,8 @@ void ACoverSystem::BeginPlay()
 void ACoverSystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
+
 void ACoverSystem::SystemInitialize() //Dodawanie osłon i postaci do list
 {
 	TArray<AActor*> Actors;
@@ -37,20 +37,24 @@ void ACoverSystem::SystemInitialize() //Dodawanie osłon i postaci do list
 		}
 		else AllyTeam.Add(Character);
 	}
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, FString::Printf(TEXT("CoversOnScene: %d"), CoversOnScene.Num()));
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, FString::Printf(TEXT("EnemyTeam: %d"), EnemyTeam.Num()));
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, FString::Printf(TEXT("AllyTeam: %d"), AllyTeam.Num()));
 }
 
-bool ACoverSystem::FindBestCoverForCharacter(ACover* &BestCover)
+bool ACoverSystem::FindBestCoverForCharacter(AAICharacter* TargetCharacter, AAICharacter* AimTarget, TArray<AAICharacter*> EnemiesOfTargetCharacter, ACover* &BestCover, bool &bCanShootToAimTargetFromBestCover)
 {
-	//TODO Warunki 
 	{
+		if (!TargetCharacter)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Select target character"));
+			return false;
+		}
+		if (EnemiesOfTargetCharacter.Num() < 1)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Missing Enemies of target character"));
+		}
 		if (CoversOnScene.Num() < 0 ) return false;
 		if (EnemyTeam.Num() < 0 ) return false;
 		if (AllyTeam.Num() < 0 ) return false; 
 	}
-	
 	TArray<ACover*> CoverCandidates;
 	TArray<ACover*> TempCoverCandidates;
 
@@ -62,18 +66,10 @@ bool ACoverSystem::FindBestCoverForCharacter(ACover* &BestCover)
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("All Covers are reserved"));
 			return false;
 		}
-		if (CoverCandidates.Num() == 1)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("Only one free cover found"));
-		}
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("More than one free cover found: %d"), CoverCandidates.Num()));
-		}
 	}
 
 	//Selekcja osłon niebędących w pobliżu wrogów
-	CheckToCloseFromEnemiesCovers(CoverCandidates, TempCoverCandidates);
+	CheckToCloseFromEnemiesCovers(EnemiesOfTargetCharacter, CoverCandidates, TempCoverCandidates);
 	{
 		//Jeżeli TempCoverCandidates jest pusty, to oznacza że wszystkie covery były zbyt blisko wrogów aby je brać dalej pod uwagę 
 		if(TempCoverCandidates.Num() <= 0)
@@ -82,20 +78,12 @@ bool ACoverSystem::FindBestCoverForCharacter(ACover* &BestCover)
 			return false;
 		}
 		//Jeżeli TempCoverCandidates zawiera jakieś elementy, to oznacza że znaleziono x coverów, które są wystarczająco daleko od wrogów i można brać je pod uwagę w dalszych checkach
-		if (TempCoverCandidates.Num() > 1)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("More than one cover is far enough from enemy: %d"), TempCoverCandidates.Num()));
-		}
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("Only one cover is far enough from enemy"));
-		}
 		CoverCandidates = TempCoverCandidates;
 		TempCoverCandidates = TArray<ACover*>();
 	}
 
 	//Selekcja osłon chroniących przed wrogami
-	CheckNotSafeCovers(CoverCandidates, TempCoverCandidates);
+	CheckNotSafeCovers(EnemiesOfTargetCharacter, CoverCandidates, TempCoverCandidates);
 	{
 		//Jeżeli TempCoverCandidates jest pusty, to oznacza, że nie ma osłony, która zapewni ochronę przed wrogiem
 		if(TempCoverCandidates.Num() <= 0)
@@ -104,14 +92,9 @@ bool ACoverSystem::FindBestCoverForCharacter(ACover* &BestCover)
 			return false;
 		}
 		//Jeżeli TempCoverCandidates ma więcej niż 1 element, to można dalej wybrać lepszą osłonę, obliczenia zostają kontynuowane
-		if (TempCoverCandidates.Num() > 1)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("More than one safe cover: %d"), TempCoverCandidates.Num()));
-		}
 		//Jeżeli TempCoverCandidates ma jeden element, oznacza to że tylko jedna osłona jest bezpieczna. W tym momencie funkcja zwraca najlepszą osłonę, nie ma sensu dalej kontynuować obliczeń
-		else
+		if (TempCoverCandidates.Num() < 1)
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Found only one safe cover"));
 			if (!TempCoverCandidates.IsEmpty()) BestCover = TempCoverCandidates [0];
 			return true;
 		}
@@ -119,10 +102,49 @@ bool ACoverSystem::FindBestCoverForCharacter(ACover* &BestCover)
 		TempCoverCandidates = TArray<ACover*>();
 	}
 	
-	
-	//TODO debug
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, FString::Printf(TEXT("CoverCandidates: %d"), CoverCandidates.Num()));
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, FString::Printf(TEXT("TempCoverCandidates: %d"), TempCoverCandidates.Num()));
+	//Selekcja osłon z możliwością strzału
+	if (AimTarget)
+	{
+		CheckShootingPosibility(CoverCandidates, TempCoverCandidates, AimTarget);
+		//Funkcja nie zwraca tutaj, ponieważ są conajmniej 2 osłony które mogą jeszcze powalczyć o miano najlepszej osłony
+		if(TempCoverCandidates.Num() <= 0)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("No cover with shooting posibility found"));
+			bCanShootToAimTargetFromBestCover = false;
+		}
+		//Zwraca boola, który może być przydatny przy opracowaniu mechaniki strzelania
+		else if(TempCoverCandidates.Num() > 1)
+		{
+			CoverCandidates = TempCoverCandidates;
+			TempCoverCandidates = TArray<ACover*>();
+			bCanShootToAimTargetFromBestCover = true;
+		}
+		else if (TempCoverCandidates.Num() == 1)
+		{
+			BestCover = CoverCandidates[0];
+			bCanShootToAimTargetFromBestCover = true;
+			return true;
+		}
+	}
+
+	//Selekcja osłon w efektywnym zasięgu strzału od wroga
+	if (AimTarget && bCanShootToAimTargetFromBestCover)
+	{
+		CheckIfDistanceIsEffective(CoverCandidates, TempCoverCandidates, AimTarget);
+		if(TempCoverCandidates.Num() > 1)
+		{
+			CoverCandidates = TempCoverCandidates;
+			TempCoverCandidates = TArray<ACover*>();
+		}
+		else if (TempCoverCandidates.Num() == 1)
+		{
+			BestCover = CoverCandidates[0];
+			return true;
+		}
+	}
+
+	//Wybór najbliższej osłony
+	BestCover = GetNearestCover(CoverCandidates, TargetCharacter);
 	return true;
 }
 
@@ -134,11 +156,11 @@ void ACoverSystem::CheckOccupiedCovers(TArray<ACover*> &CoverCandidates)
 		if (!Cover->bIsReserved) CoverCandidates.Add(Cover);
 	}
 }
-void ACoverSystem::CheckToCloseFromEnemiesCovers(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates)
+void ACoverSystem::CheckToCloseFromEnemiesCovers(TArray<AAICharacter*> EnemiesOfTargetCharacter, TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates)
 {
 	for (auto Cover : CoverCandidates)
 	{
-		for (auto Enemy : EnemyTeam)
+		for (auto Enemy : EnemiesOfTargetCharacter)
 		{
 			float Distance = (UKismetMathLibrary::Vector_Distance(Cover->GetCoverPositionVector(), Enemy->GetActorLocation()));
 			
@@ -156,11 +178,11 @@ void ACoverSystem::CheckToCloseFromEnemiesCovers(TArray<ACover*> &CoverCandidate
 		}
 	}
 }
-void ACoverSystem::CheckNotSafeCovers(TArray<ACover*>& CoverCandidates, TArray<ACover*>& TempCoverCandidates)
+void ACoverSystem::CheckNotSafeCovers(TArray<AAICharacter*> EnemiesOfTargetCharacter, TArray<ACover*>& CoverCandidates, TArray<ACover*>& TempCoverCandidates)
 {
 	for (auto Cover : CoverCandidates)
 	{
-		for (auto Enemy : EnemyTeam)
+		for (auto Enemy : EnemiesOfTargetCharacter)
 		{
 			EDirection EnemyDirection = EDirection::ED_None;
 			// Usuwa osłonę z TempCoverCandidates, jeśli będzie ona bezpieczna przed każdym wrogiem i tak zostanie dodana. Zapobiega to zostawieniu w tablicy osłony, która będzie niebezpieczna
@@ -232,5 +254,96 @@ void ACoverSystem::CheckNotSafeCovers(TArray<ACover*>& CoverCandidates, TArray<A
 		}
 	}
 }
+void ACoverSystem::CheckShootingPosibility(TArray<ACover*>& CoverCandidates, TArray<ACover*>& TempCoverCandidates, AAICharacter* AimTarget)
+{
+	if (!AimTarget) return;
+
+	for (auto Cover : CoverCandidates)
+	{
+		EDirection EnemyDirection = EDirection::ED_None;
+		float TargetYawLookAtRotation = UKismetMathLibrary::FindRelativeLookAtRotation(Cover->GetCoverPositionTransform(), AimTarget->GetActorLocation()).Yaw;
+
+		//Sprawdzanie, czy target jest w stożku 60 stopni w każdym z czterech kierunków
+		if (UKismetMathLibrary::InRange_FloatFloat(TargetYawLookAtRotation, LeftDirectionAngleRange.GetLowerBoundValue() + ShootAngleRangeOffset, LeftDirectionAngleRange.GetUpperBoundValue() - ShootAngleRangeOffset))
+		{
+			EnemyDirection = EDirection::ED_Left;
+		}
+		else if (UKismetMathLibrary::InRange_FloatFloat(TargetYawLookAtRotation, RightDirectionAngleRangePositive.GetLowerBoundValue() + ShootAngleRangeOffset, RightDirectionAngleRangePositive.GetUpperBoundValue()))
+		{
+			EnemyDirection = EDirection::ED_Right;
+		}
+		else if (UKismetMathLibrary::InRange_FloatFloat(TargetYawLookAtRotation, RightDirectionAngleRangeNegative.GetLowerBoundValue(), RightDirectionAngleRangeNegative.GetUpperBoundValue() - ShootAngleRangeOffset))
+		{
+			EnemyDirection = EDirection::ED_Right;
+		}
+		else if (UKismetMathLibrary::InRange_FloatFloat(TargetYawLookAtRotation, TopDirectionAngleRange.GetLowerBoundValue() + ShootAngleRangeOffset, TopDirectionAngleRange.GetUpperBoundValue() - ShootAngleRangeOffset))
+		{
+			EnemyDirection = EDirection::ED_Top;
+		}
+		else if (UKismetMathLibrary::InRange_FloatFloat(TargetYawLookAtRotation, BottomDirectionAngleRange.GetLowerBoundValue() + ShootAngleRangeOffset, BottomDirectionAngleRange.GetUpperBoundValue() - ShootAngleRangeOffset))
+		{
+			EnemyDirection = EDirection::ED_Bottom;
+		}
+
+		if (EnemyDirection != EDirection::ED_None)
+		{
+			TempCoverCandidates.AddUnique(Cover);
+		}
+	}
+}
+void ACoverSystem::CheckIfDistanceIsEffective(TArray<ACover*>& CoverCandidates, TArray<ACover*>& TempCoverCandidates, AAICharacter* AimTarget)
+{
+	for (auto Cover : CoverCandidates)
+	{
+		float Distance = (UKismetMathLibrary::Vector_Distance(Cover->GetCoverPositionVector(), AimTarget->GetActorLocation()));
+		
+		if (Distance <= EffectiveShootDistance) TempCoverCandidates.AddUnique(Cover);
+	}
+}
+ACover* ACoverSystem::GetNearestCover(TArray<ACover*> Covers, AAICharacter* TargetCharacter)
+{
+	ACover* TempBestCover = Covers[0];
+	for (auto Cover : Covers)
+	{
+		if(
+			UKismetMathLibrary::Vector_Distance(Cover->GetCoverPositionVector(), TargetCharacter->GetActorLocation()) <
+			UKismetMathLibrary::Vector_Distance(TempBestCover->GetCoverPositionVector(), TargetCharacter->GetActorLocation())
+			) TempBestCover = Cover;
+	}
+	return TempBestCover;
+}
+
+void ACoverSystem::ReserveCover(ACover* CoverToReverse, AAICharacter* TargetCharacter)
+{
+	if (!CoverToReverse || !TargetCharacter) return;
+
+	if(CoverToReverse->bIsReserved) GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Cover is already reserved"));
+	else
+	{
+		if (TargetCharacter->ReservedCover)
+		{
+			TargetCharacter->ReservedCover->bIsReserved = false;
+		}
+		TargetCharacter->ReservedCover = CoverToReverse;
+		CoverToReverse->bIsReserved = true;
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Reservation Successful"));
+	}
+}
+void ACoverSystem::DeleteReservation(AAICharacter* TargetCharacter)
+{
+	if (!TargetCharacter) return;
+	if (TargetCharacter->ReservedCover)
+	{
+		TargetCharacter->ReservedCover->bIsReserved = false;
+		TargetCharacter->ReservedCover = nullptr;
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Green, TEXT("Reservation Deleted"));
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Character has no reservation"));
+	}
+}
+
+
 
 

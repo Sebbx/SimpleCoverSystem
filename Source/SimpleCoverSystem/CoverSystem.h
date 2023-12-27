@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AICharacter.h"
 #include "GameFramework/Actor.h"
 #include "CoverSystem.generated.h"
 
@@ -28,16 +29,16 @@ public:
 	UPROPERTY(EditAnywhere)
 	float MinimumDistanceFromEnemyToCover = 300.f;
 
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AAICharacter*> EnemyTeam;
+	UPROPERTY(BlueprintReadOnly)
+	TArray<AAICharacter*> AllyTeam;
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	UFUNCTION(BlueprintCallable)
-	void SystemInitialize();
 
 	TArray<ACover*> CoversOnScene;
-	TArray<AAICharacter*> EnemyTeam;
-	TArray<AAICharacter*> AllyTeam;
 
 	UPROPERTY(EditAnywhere, Category = "World Directions")
 	FFloatRange LeftDirectionAngleRange = FFloatRange(-45, 45);
@@ -50,13 +51,27 @@ private:
 	UPROPERTY(EditAnywhere, Category = "World Directions")
 	FFloatRange BottomDirectionAngleRange = FFloatRange(-135, -45);
 
+	UPROPERTY(EditAnywhere, Category = "ShootingProperties")
+	float ShootAngleRangeOffset = 15.f;
+	UPROPERTY(EditAnywhere, Category = "ShootingProperties")
+	float EffectiveShootDistance = 450.f;
 	
 	UFUNCTION(BlueprintCallable)
-	bool FindBestCoverForCharacter(ACover* &BestCover);
+	void SystemInitialize();
+	
+	UFUNCTION(BlueprintCallable)
+	bool FindBestCoverForCharacter(AAICharacter* TargetCharacter, AAICharacter* AimTarget, TArray<AAICharacter*> EnemiesOfTargetCharacter, ACover* &BestCover, bool &bCanShootToAimTargetFromBestCover);
 	
 	void CheckOccupiedCovers(TArray<ACover*> &CoverCandidates);
-	void CheckToCloseFromEnemiesCovers(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
-	void CheckNotSafeCovers(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
-	
+	void CheckToCloseFromEnemiesCovers(TArray<AAICharacter*> EnemiesOfTargetCharacter, TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
+	void CheckNotSafeCovers(TArray<AAICharacter*> EnemiesOfTargetCharacter, TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates);
+	void CheckShootingPosibility(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates, AAICharacter* AimTarget);
+	void CheckIfDistanceIsEffective(TArray<ACover*> &CoverCandidates, TArray<ACover*> &TempCoverCandidates, AAICharacter* AimTarget);
+	ACover* GetNearestCover(TArray<ACover*> Covers, AAICharacter* TargetCharacter);
+
+	UFUNCTION(BlueprintCallable)
+	void ReserveCover(ACover* CoverToReverse, AAICharacter* TargetCharacter);
+	UFUNCTION(BlueprintCallable)
+	void DeleteReservation(AAICharacter* TargetCharacter);
 
 };

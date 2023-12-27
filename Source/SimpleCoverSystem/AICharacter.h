@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/WidgetComponent.h"
 #include "GameFramework/Character.h"
+#include "Cover.h"
 #include "AICharacter.generated.h"
 
 UCLASS()
@@ -17,13 +17,16 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
 
 public:	
 	virtual void Tick(float DeltaTime) override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(BlueprintReadOnly)
 	bool bIsEnemy = false;
+	
+	UPROPERTY(BlueprintReadOnly)
+	ACover* ReservedCover;
+
 };

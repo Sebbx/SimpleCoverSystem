@@ -15,6 +15,7 @@ public:
 	UPROPERTY(EditAnywhere)
 	class USceneComponent* CoverPosition; //SceneComponent do łatwego ustawienia docelowej pozycji przy osłonie
 
+	UFUNCTION(BlueprintCallable)
 	FVector GetCoverPositionVector();
 	FTransform GetCoverPositionTransform();
 
